@@ -18,6 +18,9 @@ func checkServer(url string) tea.Msg {
 		response *http.Response
 	)
 
+	// This is only to test the progress bar bubble.
+	time.Sleep(5 * time.Second)
+
 	client = &http.Client{
 		Timeout: 10 * time.Second,
 	}
@@ -29,4 +32,10 @@ func checkServer(url string) tea.Msg {
 	defer response.Body.Close() // nolint:errcheck
 
 	return statusMsg(response.StatusCode)
+}
+
+func checkServerCmd(url string) tea.Cmd {
+	return func() tea.Msg {
+		return checkServer(url)
+	}
 }
