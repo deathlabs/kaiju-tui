@@ -118,8 +118,14 @@ jobs:
           go-version: '1.26.2'
       - name: Build kaiju-tui
         run: |
-          CGO_ENABLED=0 GOOS=linux   GOARCH=amd64 go build -o dist/kaiju-tui-linux-amd64       .
-          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o dist/kaiju-tui-windows-amd64.exe .
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+            go build \
+            -ldflags="-s -w -X 'github.com/deathlabs/kaiju-tui/cmd.version=${VERSION}'" \
+            -o dist/kaiju-tui-linux-amd64 .
+          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 \
+            go build \
+            -ldflags="-s -w -X 'github.com/deathlabs/kaiju-tui/cmd.version=${VERSION}'" \
+            -o dist/kaiju-tui-windows-amd64.exe .
       - name: Extract release notes
         id: release_notes
         uses: ffurrer2/extract-release-notes@v2
