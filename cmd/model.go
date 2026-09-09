@@ -7,9 +7,11 @@ import (
 )
 
 type Model struct {
-	Choices  []string         // Items on the to-do list.
-	Cursor   int              // The to-do list item our cursor is pointing at.
-	Selected map[int]struct{} // The to-do items selected.
+	Choices      []string         // Items on the list.
+	Cursor       int              // The item our cursor is pointing at.
+	Selected     map[int]struct{} // The items selected.
+	ServerStatus int
+	ServerError  string
 }
 
 func (model Model) Init() tea.Cmd {
@@ -51,7 +53,17 @@ func (model Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			} else {
 				model.Selected[model.Cursor] = struct{}{}
 			}
+
+			return model, func() tea.Msg {
+				return checkServer("http://google.com")
+			}
 		}
+
+	case statusMsg:
+		model.ServerStatus = int(msg)
+
+	case errMsg:
+		model.ServerError = msg.Error()
 	}
 
 	// Return the updated model to the Bubble Tea runtime for processing.
@@ -79,14 +91,21 @@ func (model Model) View() tea.View {
 			cursor = ">" // cursor!
 		}
 
-		// Is this choice selected?
-		checked = " " // not selected
+		// Was this choice selected?
+		checked = " " // This means the choice was not selected.
 		if _, ok = model.Selected[index]; ok {
-			checked = "x" // selected!
+			checked = "x" // This means the choice was selected.
 		}
 
 		// Render the row.
 		ui += fmt.Sprintf("%s [%s] %s\n", cursor, checked, choice)
+	}
+
+	// Display server status or error if available.
+	if model.ServerError != "" {
+		ui += fmt.Sprintf("\nError: %s\n", model.ServerError)
+	} else if model.ServerStatus != 0 {
+		ui += fmt.Sprintf("\nServer status: %d\n", model.ServerStatus)
 	}
 
 	// The footer.
