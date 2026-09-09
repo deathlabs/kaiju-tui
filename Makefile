@@ -1,0 +1,27 @@
+# ---------------------------------------------------------
+# Set the default target.
+# ---------------------------------------------------------
+
+.DEFAULT_GOAL := build
+VERSION := $(shell date +%Y-%m-%d-%H%M%S)
+
+# ---------------------------------------------------------
+# Build the artifact.
+# ---------------------------------------------------------
+
+.PHONY: build
+.SILENT: build
+
+build:
+	go install -ldflags="-s -w -X 'github.com/deathlabs/kaiju-tui/cmd.version=$(VERSION)'" .
+
+# ---------------------------------------------------------
+# Update dependencies.
+# ---------------------------------------------------------
+
+.PHONY: update
+.SILENT: update
+
+update:
+	go get -u ./...
+	go mod tidy
