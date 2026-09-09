@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -11,6 +12,7 @@ var (
 		Use:     "kaiju-tui",
 		Short:   "A Terminal User Interface (TUI) for Kaiju.",
 		Version: version,
+		RunE:    run,
 	}
 	version string
 )
@@ -18,10 +20,7 @@ var (
 func Execute() {
 	var err = rootCmd.Execute()
 	if err != nil {
+		fmt.Println(err)
 		os.Exit(1)
 	}
-}
-
-func init() {
-	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
