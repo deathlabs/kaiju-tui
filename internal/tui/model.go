@@ -1,20 +1,13 @@
-package model
+package tui
 
 import (
 	"fmt"
-	"time"
 
 	"charm.land/bubbles/v2/progress"
 	tea "charm.land/bubbletea/v2"
+	"github.com/deathlabs/kaiju-tui/internal/messages"
+	"github.com/deathlabs/kaiju-tui/internal/tools"
 )
-
-type tickMsg time.Time
-
-func tickCmd() tea.Cmd {
-	return tea.Tick(100*time.Millisecond, func(t time.Time) tea.Msg {
-		return tickMsg(t)
-	})
-}
 
 type Model struct {
 	Choices      []string         // Items on the list.
@@ -31,6 +24,7 @@ func (model Model) Init() tea.Cmd {
 }
 
 func (model Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
 
 	// Handle incoming messages by Go type.
 	switch msg := msg.(type) {
@@ -74,14 +68,14 @@ func (model Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			// Return the updated model and selected command.
 			return model, tea.Batch(
-				checkServerCmd(model.Choices[model.Cursor]),
-				tickCmd(),
+				tools.CheckServerCmd(model.Choices[model.Cursor]),
+				tools.TickCmd(),
 				progressCmd,
 			)
 		}
 
 	// Is it a status message?
-	case statusMsg:
+	case messages.StatusMessage:
 		// Add the server status to the model (the application's state).
 		model.ServerStatus = int(msg)
 		model.ServerError = ""
@@ -89,31 +83,26 @@ func (model Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		model.Checking = false
 
 	// Is it an error message?
-	case errMsg:
+	case messages.ErrorMessage:
 		// Add the error to the model (the application's state).
-		model.ServerError = msg.Error()
+		model.ServerError = msg.Message.Error()
 		model.ServerStatus = 0
 		model.Selected = make(map[int]struct{})
 		model.Checking = false
 
-	case tickMsg:
+	case messages.TickMessage:
 		if !model.Checking {
 			return model, nil
 		}
-
-		var cmd tea.Cmd
 
 		if model.Progress.Percent() < 0.9 {
 			cmd = model.Progress.IncrPercent(0.05)
 		}
 
-		return model, tea.Batch(tickCmd(), cmd)
+		return model, tea.Batch(tools.TickCmd(), cmd)
 
 	case progress.FrameMsg:
-		var cmd tea.Cmd
-
 		model.Progress, cmd = model.Progress.Update(msg)
-
 		return model, cmd
 	}
 

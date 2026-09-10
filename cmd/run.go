@@ -3,6 +3,7 @@ package cmd
 import (
 	"charm.land/bubbles/v2/progress"
 	tea "charm.land/bubbletea/v2"
+	"github.com/deathlabs/kaiju-tui/internal/tui"
 	"github.com/spf13/cobra"
 )
 
@@ -15,7 +16,7 @@ func run(cmd *cobra.Command, args []string) error {
 	)
 
 	// Initialize the model with the default state.
-	model = Model{
+	model = tui.Model{
 		// Our to-do list is a grocery list.
 		Choices: []string{
 			"https://google.com",
