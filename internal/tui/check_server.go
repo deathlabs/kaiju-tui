@@ -36,7 +36,13 @@ func CheckServer(url string, token string) tea.Msg {
 	if err != nil {
 		return messages.ErrorMessage{Message: err}
 	}
-	defer response.Body.Close()
+	defer func() error {
+		err = response.Body.Close()
+		if err != nil {
+			return err
+		}
+		return nil
+	}()
 
 	return messages.StatusMessage(response.StatusCode)
 }

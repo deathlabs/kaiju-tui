@@ -20,7 +20,24 @@ type KeycloakConfig struct {
 	Scopes   string
 }
 
-var authHTTPClient = &http.Client{Timeout: 10 * time.Second}
+type DeviceCodeResponse struct {
+	DeviceCode              string `json:"device_code"`
+	UserCode                string `json:"user_code"`
+	VerificationURI         string `json:"verification_uri"`
+	VerificationURIComplete string `json:"verification_uri_complete"`
+	ExpiresIn               int    `json:"expires_in"`
+	Interval                int    `json:"interval"`
+}
+
+type TokenResponse struct {
+	AccessToken      string `json:"access_token"`
+	RefreshToken     string `json:"refresh_token"`
+	ExpiresIn        int    `json:"expires_in"`
+	Error            string `json:"error"`
+	ErrorDescription string `json:"error_description"`
+}
+
+var httpClient = &http.Client{Timeout: 10 * time.Second}
 
 func (keycloakConfig KeycloakConfig) deviceEndpoint() string {
 	return fmt.Sprintf(
@@ -40,16 +57,9 @@ func (keycloakConfig KeycloakConfig) tokenEndpoint() string {
 func RequestDeviceCodeCmd(cfg KeycloakConfig) tea.Cmd {
 	return func() tea.Msg {
 		var (
-			cancel context.CancelFunc
-			ctx    context.Context
-			dcr    struct {
-				DeviceCode              string `json:"device_code"`
-				UserCode                string `json:"user_code"`
-				VerificationURI         string `json:"verification_uri"`
-				VerificationURIComplete string `json:"verification_uri_complete"`
-				ExpiresIn               int    `json:"expires_in"`
-				Interval                int    `json:"interval"`
-			}
+			cancel   context.CancelFunc
+			ctx      context.Context
+			dcr      DeviceCodeResponse
 			err      error
 			form     url.Values
 			request  *http.Request
@@ -71,17 +81,24 @@ func RequestDeviceCodeCmd(cfg KeycloakConfig) tea.Cmd {
 		}
 		request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-		response, err = authHTTPClient.Do(request)
+		response, err = httpClient.Do(request)
 		if err != nil {
 			return messages.DeviceCodeMsg{Err: err}
 		}
-		defer response.Body.Close()
+		defer func() error {
+			err = response.Body.Close()
+			if err != nil {
+				return err
+			}
+			return nil
+		}()
 
 		if response.StatusCode != http.StatusOK {
 			return messages.DeviceCodeMsg{Err: fmt.Errorf("device code request failed: %s", response.Status)}
 		}
 
-		if err = json.NewDecoder(response.Body).Decode(&dcr); err != nil {
+		err = json.NewDecoder(response.Body).Decode(&dcr)
+		if err != nil {
 			return messages.DeviceCodeMsg{Err: err}
 		}
 
@@ -100,19 +117,13 @@ func RequestDeviceCodeCmd(cfg KeycloakConfig) tea.Cmd {
 func PollTokenCmd(cfg KeycloakConfig, deviceCode string) tea.Cmd {
 	return func() tea.Msg {
 		var (
-			ctx      context.Context
-			cancel   context.CancelFunc
-			err      error
-			form     url.Values
-			request  *http.Request
-			response *http.Response
-			tr       struct {
-				AccessToken  string `json:"access_token"`
-				RefreshToken string `json:"refresh_token"`
-				ExpiresIn    int    `json:"expires_in"`
-				Error        string `json:"error"`
-				ErrorDesc    string `json:"error_description"`
-			}
+			ctx           context.Context
+			cancel        context.CancelFunc
+			err           error
+			form          url.Values
+			request       *http.Request
+			response      *http.Response
+			tokenResponse TokenResponse
 		)
 
 		form = url.Values{}
@@ -136,35 +147,46 @@ func PollTokenCmd(cfg KeycloakConfig, deviceCode string) tea.Cmd {
 
 		request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-		response, err = authHTTPClient.Do(request)
+		response, err = httpClient.Do(request)
 		if err != nil {
 			return messages.AuthResultMsg{Err: err, Done: true}
 		}
-		defer response.Body.Close()
+		defer func() error {
+			err = response.Body.Close()
+			if err != nil {
+				return err
+			}
+			return nil
+		}()
 
-		if err = json.NewDecoder(response.Body).Decode(&tr); err != nil {
+		if err = json.NewDecoder(response.Body).Decode(&tokenResponse); err != nil {
 			return messages.AuthResultMsg{Err: err, Done: true}
 		}
 
 		switch {
-		case tr.AccessToken != "":
+		case tokenResponse.AccessToken != "":
 			return messages.AuthResultMsg{
-				AccessToken:  tr.AccessToken,
-				RefreshToken: tr.RefreshToken,
-				ExpiresIn:    tr.ExpiresIn,
+				AccessToken:  tokenResponse.AccessToken,
+				RefreshToken: tokenResponse.RefreshToken,
+				ExpiresIn:    tokenResponse.ExpiresIn,
 				Done:         true,
 			}
-		case tr.Error == "authorization_pending", tr.Error == "slow_down":
+		case tokenResponse.Error == "authorization_pending", tokenResponse.Error == "slow_down":
 			return messages.AuthResultMsg{}
-		case tr.Error == "expired_token", tr.Error == "access_denied":
-			return messages.AuthResultMsg{Err: fmt.Errorf("%s: %s", tr.Error, tr.ErrorDesc), Done: true}
+		case tokenResponse.Error == "expired_token", tokenResponse.Error == "access_denied":
+			return messages.AuthResultMsg{
+				Err: fmt.Errorf(
+					"%s: %s",
+					tokenResponse.Error,
+					tokenResponse.ErrorDescription),
+				Done: true}
 		default:
-			if tr.Error != "" {
+			if tokenResponse.Error != "" {
 				return messages.AuthResultMsg{
 					Err: fmt.Errorf(
 						"%s: %s",
-						tr.Error,
-						tr.ErrorDesc),
+						tokenResponse.Error,
+						tokenResponse.ErrorDescription),
 					Done: true}
 			}
 			return messages.AuthResultMsg{
