@@ -1,4 +1,4 @@
-package tools
+package tui
 
 import (
 	"net/http"
@@ -8,21 +8,31 @@ import (
 	"github.com/deathlabs/kaiju-tui/internal/messages"
 )
 
-func CheckServer(url string) tea.Msg {
+func CheckServer(url string, token string) tea.Msg {
 	var (
 		client   *http.Client
 		err      error
+		request  *http.Request
 		response *http.Response
+		timeout  time.Duration
 	)
 
-	// This is only to test the progress bar bubble.
-	time.Sleep(5 * time.Second)
+	timeout = 10 * time.Second
 
 	client = &http.Client{
-		Timeout: 10 * time.Second,
+		Timeout: timeout,
 	}
 
-	response, err = client.Get(url)
+	request, err = http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return messages.ErrorMessage{Message: err}
+	}
+
+	if token != "" {
+		request.Header.Set("Authorization", "Bearer "+token)
+	}
+
+	response, err = client.Do(request)
 	if err != nil {
 		return messages.ErrorMessage{Message: err}
 	}
@@ -31,9 +41,9 @@ func CheckServer(url string) tea.Msg {
 	return messages.StatusMessage(response.StatusCode)
 }
 
-func CheckServerCmd(url string) tea.Cmd {
+func CheckServerCmd(url string, token string) tea.Cmd {
 	return func() tea.Msg {
-		return CheckServer(url)
+		return CheckServer(url, token)
 	}
 }
 

@@ -6,7 +6,6 @@ import (
 	"charm.land/bubbles/v2/progress"
 	tea "charm.land/bubbletea/v2"
 	"github.com/deathlabs/kaiju-tui/internal/messages"
-	"github.com/deathlabs/kaiju-tui/internal/tools"
 )
 
 type Model struct {
@@ -17,6 +16,7 @@ type Model struct {
 	ServerError  string
 	Progress     progress.Model
 	Checking     bool
+	Token        string // Bearer token from the device flow.
 }
 
 func (model Model) Init() tea.Cmd {
@@ -68,8 +68,8 @@ func (model Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			// Return the updated model and selected command.
 			return model, tea.Batch(
-				tools.CheckServerCmd(model.Choices[model.Cursor]),
-				tools.TickCmd(),
+				CheckServerCmd(model.Choices[model.Cursor], model.Token),
+				TickCmd(),
 				progressCmd,
 			)
 		}
@@ -99,7 +99,7 @@ func (model Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmd = model.Progress.IncrPercent(0.05)
 		}
 
-		return model, tea.Batch(tools.TickCmd(), cmd)
+		return model, tea.Batch(TickCmd(), cmd)
 
 	case progress.FrameMsg:
 		model.Progress, cmd = model.Progress.Update(msg)
