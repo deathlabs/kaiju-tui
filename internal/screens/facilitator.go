@@ -35,11 +35,7 @@ func (screen FacilitatorScreen) Update(msg tea.Msg) (FacilitatorScreen, tea.Cmd)
 		// What key was pressed?
 		switch msg.String() {
 
-		// These keys exit the program.
-		case "ctrl+c", "q":
-			return screen, tea.Quit
-
-			// The "up" and "k" keys move the cursor up.
+		// The "up" and "k" keys move the cursor up.
 		case "up", "k":
 			screen.ServerStatus = 0
 			screen.ServerError = ""
@@ -167,7 +163,7 @@ func (screen FacilitatorScreen) View() tea.View {
 	}
 
 	// The footer.
-	ui += "\nMove: ↑/↓ | Select: Enter | Facilitator: f | Participant: p | Quit: q\n"
+	ui += "\nMove: ↑/↓ | Select: Enter | Exercise: E | Facilitator: f | Participant: p | Quit: q\n"
 
 	// Return the UI so it can be rendered.
 	return tea.NewView(ui)

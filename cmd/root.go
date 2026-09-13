@@ -37,6 +37,7 @@ func run(cmd *cobra.Command, args []string) error {
 			Selected: make(map[int]struct{}),
 			Progress: progress.New(progress.WithDefaultBlend()),
 		},
+		Exercise: screens.NewExerciseScreen(),
 	}
 
 	app = tui.NewApp(authConfig, model)

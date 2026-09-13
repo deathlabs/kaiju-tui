@@ -29,6 +29,8 @@ func (screen ParticipantScreen) Update(msg tea.Msg) (ParticipantScreen, tea.Cmd)
 		switch msg.String() {
 		case "ctrl+c", "q":
 			return screen, tea.Quit
+		default:
+			return screen, nil
 		}
 
 	case tea.WindowSizeMsg:
@@ -116,7 +118,7 @@ func (screen ParticipantScreen) footerView() string {
 		info,
 	)
 
-	controls := "\n↑/↓: Scroll | Facilitator: f | Participant: p | Quit: q"
+	controls := "\n↑/↓: Scroll | Exercise: E | Facilitator: f | Participant: p | Quit: q"
 
 	return status + controls
 }

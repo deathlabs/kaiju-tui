@@ -10,12 +10,14 @@ type Screen int
 const (
 	ScreenFacilitator Screen = iota
 	ScreenParticipant
+	ScreenExercise
 )
 
 type Model struct {
 	Screen      Screen
 	Facilitator screens.FacilitatorScreen
 	Participant screens.ParticipantScreen
+	Exercise    screens.ExerciseScreen
 }
 
 func (model Model) Init() tea.Cmd {
@@ -28,11 +30,15 @@ func (model Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
 		switch msg.String() {
-		case "f":
+		case "ctrl+c":
+			return model, tea.Quit
+		case "e":
+			model.Screen = ScreenExercise
+			return model, model.Exercise.Init()
+		case "ctrl+f":
 			model.Screen = ScreenFacilitator
 			return model, nil
-
-		case "p":
+		case "ctrl+p":
 			model.Screen = ScreenParticipant
 			return model, nil
 		}
@@ -44,6 +50,9 @@ func (model Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case ScreenParticipant:
 		model.Participant, cmd = model.Participant.Update(msg)
+
+	case ScreenExercise:
+		model.Exercise, cmd = model.Exercise.Update(msg)
 	}
 
 	return model, cmd
@@ -56,6 +65,9 @@ func (model Model) View() tea.View {
 
 	case ScreenParticipant:
 		return model.Participant.View()
+
+	case ScreenExercise:
+		return model.Exercise.View()
 	}
 
 	return tea.NewView("unknown screen")
