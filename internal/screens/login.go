@@ -4,12 +4,21 @@ import (
 	"fmt"
 	"time"
 
+	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 	"github.com/deathlabs/kaiju-tui/internal/auth"
 	"github.com/deathlabs/kaiju-tui/internal/messages"
 )
 
 type state int
+
+const banner = `
+ __  __     ______     __       __     __  __    
+/\ \/ /    /\  __ \   /\ \     /\ \   /\ \/\ \   
+\ \  _"-.  \ \  __ \  \ \ \   _\_\ \  \ \ \_\ \  
+ \ \_\ \_\  \ \_\ \_\  \ \_\ /\_____\  \ \_____\ 
+  \/_/\/_/   \/_/\/_/   \/_/ \/_____/   \/_____/ 
+`
 
 const (
 	stateRequestingCode state = iota
@@ -26,17 +35,28 @@ type LoginScreen struct {
 	Err          error
 	interval     int
 	RefreshToken string
+	spinner      spinner.Model
 	state        state
 	userCode     string
 	verifyURL    string
 }
 
 func NewLoginScreen(keycloakConfig auth.KeycloakConfig) LoginScreen {
-	return LoginScreen{authConfig: keycloakConfig, state: stateRequestingCode}
+	loginSpinner := spinner.New()
+	loginSpinner.Spinner = spinner.Dot
+
+	return LoginScreen{
+		authConfig: keycloakConfig,
+		spinner:    loginSpinner,
+		state:      stateRequestingCode,
+	}
 }
 
 func (loginScreen LoginScreen) Init() tea.Cmd {
-	return auth.RequestDeviceCodeCmd(loginScreen.authConfig)
+	return tea.Batch(
+		auth.RequestDeviceCodeCmd(loginScreen.authConfig),
+		loginScreen.spinner.Tick,
+	)
 }
 
 func (loginScreen LoginScreen) Authenticated() bool {
@@ -51,21 +71,38 @@ func (loginScreen LoginScreen) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			return loginScreen, tea.Quit
 		}
 
+	case spinner.TickMsg:
+		if loginScreen.state != stateRequestingCode &&
+			loginScreen.state != stateAwaitingUser {
+			return loginScreen, nil
+		}
+
+		var cmd tea.Cmd
+		loginScreen.spinner, cmd = loginScreen.spinner.Update(message)
+		return loginScreen, cmd
+
 	case messages.DeviceCodeMsg:
 		if message.Err != nil {
 			loginScreen.state = stateError
 			loginScreen.Err = message.Err
 			return loginScreen, nil
 		}
+
 		loginScreen.userCode = message.UserCode
 		loginScreen.deviceCode = message.DeviceCode
 		loginScreen.verifyURL = message.VerificationURI
+
 		if message.VerificationURIComplete != "" {
 			loginScreen.verifyURL = message.VerificationURIComplete
 		}
+
 		loginScreen.interval = message.Interval
-		loginScreen.deadline = time.Now().Add(time.Duration(message.ExpiresIn) * time.Second)
+		loginScreen.deadline = time.Now().Add(
+			time.Duration(message.ExpiresIn) * time.Second,
+		)
+
 		loginScreen.state = stateAwaitingUser
+
 		return loginScreen, auth.AuthPollTickCmd(loginScreen.interval)
 
 	case messages.AuthPollTickMsg:
@@ -74,7 +111,11 @@ func (loginScreen LoginScreen) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			loginScreen.Err = fmt.Errorf("device code expired, restart login")
 			return loginScreen, nil
 		}
-		return loginScreen, auth.PollTokenCmd(loginScreen.authConfig, loginScreen.deviceCode)
+
+		return loginScreen, auth.PollTokenCmd(
+			loginScreen.authConfig,
+			loginScreen.deviceCode,
+		)
 
 	case messages.AuthResultMsg:
 		if message.Err != nil {
@@ -82,12 +123,14 @@ func (loginScreen LoginScreen) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			loginScreen.Err = message.Err
 			return loginScreen, nil
 		}
+
 		if message.AccessToken != "" {
 			loginScreen.state = stateAuthenticated
 			loginScreen.AccessToken = message.AccessToken
 			loginScreen.RefreshToken = message.RefreshToken
 			return loginScreen, nil
 		}
+
 		return loginScreen, auth.AuthPollTickCmd(loginScreen.interval)
 	}
 
@@ -99,17 +142,27 @@ func (loginScreen LoginScreen) View() tea.View {
 
 	switch loginScreen.state {
 	case stateRequestingCode:
-		screen = "Requesting device code...\n"
+		screen = fmt.Sprintf(
+			"%s Requesting device code...\n",
+			loginScreen.spinner.View(),
+		)
+
 	case stateAwaitingUser:
 		screen = fmt.Sprintf(
-			"To sign in, open:\n\n  %s\n\nWaiting for authentication...\n\nPress q to quit.\n",
+			"To sign in, open:\n\n  %s\n\n%s Waiting for authentication...\n\nPress q to quit.\n",
 			loginScreen.verifyURL,
+			loginScreen.spinner.View(),
 		)
+
 	case stateAuthenticated:
 		screen = "Authenticated.\n"
+
 	case stateError:
-		screen = fmt.Sprintf("Auth failed: %v\n\nPress q to quit.\n", loginScreen.Err)
+		screen = fmt.Sprintf(
+			"Auth failed: %v\n\nPress q to quit.\n",
+			loginScreen.Err,
+		)
 	}
 
-	return tea.NewView(screen)
+	return tea.NewView(banner + "\n" + screen)
 }
