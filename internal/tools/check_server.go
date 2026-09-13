@@ -1,4 +1,4 @@
-package tui
+package tools
 
 import (
 	"net/http"

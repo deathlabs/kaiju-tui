@@ -3,19 +3,20 @@ package tui
 import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/deathlabs/kaiju-tui/internal/auth"
+	"github.com/deathlabs/kaiju-tui/internal/screens"
 )
 
-// App wraps the auth screen and main screen.
+// App wires the screens together.
 type App struct {
-	auth   auth.DeviceFlowLoginScreen
-	server Model
-	ready  bool
+	auth  screens.LoginScreen
+	model Model
+	ready bool
 }
 
-func NewApp(cfg auth.KeycloakConfig, server Model) App {
+func NewApp(authConfig auth.KeycloakConfig, model Model) App {
 	return App{
-		auth:   auth.New(cfg),
-		server: server,
+		auth:  screens.NewLoginScreen(authConfig),
+		model: model,
 	}
 }
 
@@ -31,19 +32,20 @@ func (app App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	if !app.ready {
 		model, cmd = app.auth.Update(msg)
-		app.auth = model.(auth.DeviceFlowLoginScreen)
+		app.auth = model.(screens.LoginScreen)
 
 		if app.auth.Authenticated() {
 			app.ready = true
-			app.server.Token = app.auth.AccessToken
-			return app, app.server.Init()
+			app.model.Facilitator.Token = app.auth.AccessToken
+			return app, app.model.Init()
 		}
 
 		return app, cmd
 	}
 
-	model, cmd = app.server.Update(msg)
-	app.server = model.(Model)
+	model, cmd = app.model.Update(msg)
+	app.model = model.(Model)
+
 	return app, cmd
 }
 
@@ -51,5 +53,6 @@ func (app App) View() tea.View {
 	if !app.ready {
 		return app.auth.View()
 	}
-	return app.server.View()
+
+	return app.model.View()
 }

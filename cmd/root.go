@@ -7,6 +7,7 @@ import (
 	"charm.land/bubbles/v2/progress"
 	tea "charm.land/bubbletea/v2"
 	"github.com/deathlabs/kaiju-tui/internal/auth"
+	"github.com/deathlabs/kaiju-tui/internal/screens"
 	"github.com/deathlabs/kaiju-tui/internal/tui"
 	"github.com/spf13/cobra"
 )
@@ -14,32 +15,34 @@ import (
 // run initializes and runs the TUI.
 func run(cmd *cobra.Command, args []string) error {
 	var (
-		app         tui.App
-		authCfg     auth.KeycloakConfig
-		err         error
-		program     *tea.Program
-		serverModel tui.Model
+		app        tui.App
+		authConfig auth.KeycloakConfig
+		err        error
+		model      tui.Model
+		program    *tea.Program
 	)
 
-	authCfg = auth.KeycloakConfig{
+	authConfig = auth.KeycloakConfig{
 		BaseURL:  "https://sso.uds.dev",
 		Realm:    "uds",
 		ClientID: "kaiju-tui",
 	}
 
-	serverModel = tui.Model{
-		Choices: []string{
-			"https://kaiju.uds.dev/api/v1/docs",
+	model = tui.Model{
+		Screen: tui.ScreenFacilitator,
+		Facilitator: screens.FacilitatorScreen{
+			Choices: []string{
+				"https://kaiju.uds.dev/api/v1/docs",
+			},
+			Selected: make(map[int]struct{}),
+			Progress: progress.New(progress.WithDefaultBlend()),
 		},
-		// The keys are the indexes of the `choices` slice above.
-		Selected: make(map[int]struct{}),
-		Progress: progress.New(progress.WithDefaultBlend()),
 	}
 
-	app = tui.NewApp(authCfg, serverModel)
+	app = tui.NewApp(authConfig, model)
 
-	// Use the app model to create a new Bubble Tea program and run it.
 	program = tea.NewProgram(app)
+
 	_, err = program.Run()
 	if err != nil {
 		return err
