@@ -138,7 +138,10 @@ func (loginScreen LoginScreen) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (loginScreen LoginScreen) View() tea.View {
-	var screen string
+	var (
+		screen string
+		view   tea.View
+	)
 
 	switch loginScreen.state {
 	case stateRequestingCode:
@@ -149,9 +152,8 @@ func (loginScreen LoginScreen) View() tea.View {
 
 	case stateAwaitingUser:
 		screen = fmt.Sprintf(
-			"To sign in, open:\n\n  %s\n\n%s Waiting for authentication...\n\nPress q to quit.\n",
+			"To sign in, open:\n\n  %s\n\nWaiting for authentication...\n\nPress q to quit.\n",
 			loginScreen.verifyURL,
-			loginScreen.spinner.View(),
 		)
 
 	case stateAuthenticated:
@@ -159,10 +161,12 @@ func (loginScreen LoginScreen) View() tea.View {
 
 	case stateError:
 		screen = fmt.Sprintf(
-			"Auth failed: %v\n\nPress q to quit.\n",
+			"Authentication failed: %v\n\nPress q to quit.\n",
 			loginScreen.Err,
 		)
 	}
 
-	return tea.NewView(banner + "\n" + screen)
+	view = tea.NewView(banner + "\n" + screen)
+	view.AltScreen = true
+	return view
 }

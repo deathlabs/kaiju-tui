@@ -20,6 +20,19 @@ type FacilitatorScreen struct {
 	Token        string // Bearer token from the device flow.
 }
 
+func NewFacilitatorScreen() FacilitatorScreen {
+	return FacilitatorScreen{
+		Choices:      []string{},
+		Cursor:       0,
+		Selected:     make(map[int]struct{}),
+		ServerStatus: 0,
+		ServerError:  "",
+		Progress:     progress.New(),
+		Checking:     false,
+		Token:        "",
+	}
+}
+
 func (screen FacilitatorScreen) Init() tea.Cmd {
 	return nil
 }

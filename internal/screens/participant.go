@@ -16,6 +16,15 @@ type ParticipantScreen struct {
 	Token    string
 }
 
+func NewParticipantScreen() ParticipantScreen {
+	return ParticipantScreen{
+		Content:  "",
+		Ready:    false,
+		Viewport: viewport.New(),
+		Token:    "",
+	}
+}
+
 func (screen ParticipantScreen) Init() tea.Cmd {
 	return nil
 }

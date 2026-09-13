@@ -4,10 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"charm.land/bubbles/v2/progress"
 	tea "charm.land/bubbletea/v2"
 	"github.com/deathlabs/kaiju-tui/internal/auth"
-	"github.com/deathlabs/kaiju-tui/internal/screens"
 	"github.com/deathlabs/kaiju-tui/internal/tui"
 	"github.com/spf13/cobra"
 )
@@ -15,11 +13,10 @@ import (
 // run initializes and runs the TUI.
 func run(cmd *cobra.Command, args []string) error {
 	var (
-		app        tui.App
-		authConfig auth.KeycloakConfig
-		err        error
-		model      tui.Model
-		program    *tea.Program
+		authConfig   auth.KeycloakConfig
+		err          error
+		screenRouter tui.ScreenRouter
+		program      *tea.Program
 	)
 
 	authConfig = auth.KeycloakConfig{
@@ -28,21 +25,11 @@ func run(cmd *cobra.Command, args []string) error {
 		ClientID: "kaiju-tui",
 	}
 
-	model = tui.Model{
-		Screen: tui.ScreenFacilitator,
-		Facilitator: screens.FacilitatorScreen{
-			Choices: []string{
-				"https://kaiju.uds.dev/api/v1/docs",
-			},
-			Selected: make(map[int]struct{}),
-			Progress: progress.New(progress.WithDefaultBlend()),
-		},
-		Exercise: screens.NewExerciseScreen(),
-	}
+	screenRouter = tui.NewScreenRouter("")
 
-	app = tui.NewApp(authConfig, model)
-
-	program = tea.NewProgram(app)
+	program = tea.NewProgram(
+		tui.NewTUI(authConfig, screenRouter),
+	)
 
 	_, err = program.Run()
 	if err != nil {
@@ -59,6 +46,7 @@ var (
 		Version: version,
 		RunE:    run,
 	}
+
 	version string
 )
 
