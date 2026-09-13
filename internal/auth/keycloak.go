@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -57,13 +58,16 @@ func (keycloakConfig KeycloakConfig) tokenEndpoint() string {
 func RequestDeviceCodeCmd(cfg KeycloakConfig) tea.Cmd {
 	return func() tea.Msg {
 		var (
-			cancel   context.CancelFunc
-			ctx      context.Context
-			dcr      DeviceCodeResponse
-			err      error
-			form     url.Values
-			request  *http.Request
-			response *http.Response
+			cancel             context.CancelFunc
+			closeErr           error
+			ctx                context.Context
+			deviceCodeResponse DeviceCodeResponse
+			err                error
+			form               url.Values
+			readErr            error
+			request            *http.Request
+			response           *http.Response
+			responseBody       []byte
 		)
 
 		form = url.Values{}
@@ -85,30 +89,37 @@ func RequestDeviceCodeCmd(cfg KeycloakConfig) tea.Cmd {
 		if err != nil {
 			return messages.DeviceCodeMsg{Err: err}
 		}
-		defer func() error {
-			err = response.Body.Close()
-			if err != nil {
-				return err
-			}
-			return nil
-		}()
 
-		if response.StatusCode != http.StatusOK {
-			return messages.DeviceCodeMsg{Err: fmt.Errorf("device code request failed: %s", response.Status)}
+		responseBody, readErr = io.ReadAll(response.Body)
+		closeErr = response.Body.Close()
+
+		if readErr != nil {
+			return messages.DeviceCodeMsg{Err: readErr}
 		}
 
-		err = json.NewDecoder(response.Body).Decode(&dcr)
+		if closeErr != nil {
+			return messages.DeviceCodeMsg{Err: closeErr}
+		}
+
+		if response.StatusCode != http.StatusOK {
+			return messages.DeviceCodeMsg{
+				Err: fmt.Errorf(
+					"device code request failed: %s",
+					response.Status)}
+		}
+
+		err = json.Unmarshal(responseBody, &deviceCodeResponse)
 		if err != nil {
 			return messages.DeviceCodeMsg{Err: err}
 		}
 
 		return messages.DeviceCodeMsg{
-			DeviceCode:              dcr.DeviceCode,
-			UserCode:                dcr.UserCode,
-			VerificationURI:         dcr.VerificationURI,
-			VerificationURIComplete: dcr.VerificationURIComplete,
-			ExpiresIn:               dcr.ExpiresIn,
-			Interval:                dcr.Interval,
+			DeviceCode:              deviceCodeResponse.DeviceCode,
+			UserCode:                deviceCodeResponse.UserCode,
+			VerificationURI:         deviceCodeResponse.VerificationURI,
+			VerificationURIComplete: deviceCodeResponse.VerificationURIComplete,
+			ExpiresIn:               deviceCodeResponse.ExpiresIn,
+			Interval:                deviceCodeResponse.Interval,
 		}
 	}
 }
@@ -117,12 +128,15 @@ func RequestDeviceCodeCmd(cfg KeycloakConfig) tea.Cmd {
 func PollTokenCmd(cfg KeycloakConfig, deviceCode string) tea.Cmd {
 	return func() tea.Msg {
 		var (
-			ctx           context.Context
 			cancel        context.CancelFunc
+			closeErr      error
+			ctx           context.Context
 			err           error
 			form          url.Values
+			readErr       error
 			request       *http.Request
 			response      *http.Response
+			responseBody  []byte
 			tokenResponse TokenResponse
 		)
 
@@ -151,15 +165,20 @@ func PollTokenCmd(cfg KeycloakConfig, deviceCode string) tea.Cmd {
 		if err != nil {
 			return messages.AuthResultMsg{Err: err, Done: true}
 		}
-		defer func() error {
-			err = response.Body.Close()
-			if err != nil {
-				return err
-			}
-			return nil
-		}()
 
-		if err = json.NewDecoder(response.Body).Decode(&tokenResponse); err != nil {
+		responseBody, readErr = io.ReadAll(response.Body)
+		closeErr = response.Body.Close()
+
+		if readErr != nil {
+			return messages.AuthResultMsg{Err: readErr, Done: true}
+		}
+
+		if closeErr != nil {
+			return messages.AuthResultMsg{Err: closeErr, Done: true}
+		}
+
+		err = json.Unmarshal(responseBody, &tokenResponse)
+		if err != nil {
 			return messages.AuthResultMsg{Err: err, Done: true}
 		}
 
@@ -171,9 +190,11 @@ func PollTokenCmd(cfg KeycloakConfig, deviceCode string) tea.Cmd {
 				ExpiresIn:    tokenResponse.ExpiresIn,
 				Done:         true,
 			}
-		case tokenResponse.Error == "authorization_pending", tokenResponse.Error == "slow_down":
+		case tokenResponse.Error == "authorization_pending",
+			tokenResponse.Error == "slow_down":
 			return messages.AuthResultMsg{}
-		case tokenResponse.Error == "expired_token", tokenResponse.Error == "access_denied":
+		case tokenResponse.Error == "expired_token",
+			tokenResponse.Error == "access_denied":
 			return messages.AuthResultMsg{
 				Err: fmt.Errorf(
 					"%s: %s",
@@ -198,6 +219,11 @@ func PollTokenCmd(cfg KeycloakConfig, deviceCode string) tea.Cmd {
 	}
 }
 
+// AuthPollTickMsg creates a message to indicate the poll interval has elapsed.
+func AuthPollTickMsg(time.Time) tea.Msg {
+	return messages.AuthPollTickMsg{}
+}
+
 // AuthPollTickCmd schedules the next poll after the given interval.
 func AuthPollTickCmd(intervalSeconds int) tea.Cmd {
 	var duration time.Duration
@@ -208,7 +234,5 @@ func AuthPollTickCmd(intervalSeconds int) tea.Cmd {
 		duration = 5 * time.Second
 	}
 
-	return tea.Tick(duration, func(time.Time) tea.Msg {
-		return messages.AuthPollTickMsg{}
-	})
+	return tea.Tick(duration, AuthPollTickMsg)
 }
