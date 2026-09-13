@@ -47,7 +47,7 @@ jobs:
           args: --output.sarif.path kaiju-tui-lint-scan.sarif
       - name: Print Code Lint Scan
         if: always()
-        run: cat kaiju-tui-lint-scan.sarif
+        run: cat kaiju-tui-lint-scan.sarif | jq .
 
   sast:
     name: SAST Scan
